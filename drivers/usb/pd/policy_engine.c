@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
  * Copyright (c) 2016-2021, The Linux Foundation. All rights reserved.
+ * Copyright (C) 2021 XiaoMi, Inc.
  */
 
 #include <linux/completion.h>
@@ -355,7 +356,7 @@ static void *usbpd_ipc_log;
 #define PD_MIN_SINK_CURRENT	900
 
 #define PD_VBUS_MAX_VOLTAGE_LIMIT		9000000
-#define MAX_FIXED_PDO_MA				2000
+#define MAX_FIXED_PDO_MA			2000
 #define MAX_NON_COMPLIANT_PPS_UA		2000000
 
 static int min_sink_current = 900;
@@ -364,7 +365,7 @@ module_param(min_sink_current, int, 0600);
 #if defined (CONFIG_IDT_P9415) || defined (CONFIG_RX1619)
 static const u32 default_src_caps[] = { 0x36019032 };	/* VSafe5V @ 0.5A */
 #else
-static const u32 default_src_caps[] = { 0x36019096 };	/* VSafe5V @ 1.5A */
+static const u32 default_src_caps[] = { 0x36019096 };   /* VSafe5V @ 1.5A */
 #endif
 static const u32 default_snk_caps[] = { 0x2601912C };	/* VSafe5V @ 3A */
 
@@ -496,7 +497,7 @@ struct usbpd {
 
 	bool		has_dp;
 	u16			ss_lane_svid;
-	/* for xiaomi verified pd adapter */
+	/*for xiaomi verifed pd adapter*/
 	u32			adapter_id;
 	u32			adapter_svid;
 	struct usbpd_vdm_data   vdm_data;
@@ -558,7 +559,6 @@ static void handle_state_snk_wait_for_capabilities(struct usbpd *pd,
 static void handle_state_prs_snk_src_source_on(struct usbpd *pd,
 	struct rx_msg *rx_msg);
 static void reset_vdm_state(struct usbpd *pd);
-
 static const struct usbpd_state_handler state_handlers[];
 
 enum plug_orientation usbpd_get_plug_orientation(struct usbpd *pd)
@@ -889,7 +889,7 @@ static int pd_send_ext_msg(struct usbpd *pd, u8 msg_type,
 				pd->tx_msgid[sop], num_objs, pd->spec_rev) |
 			PD_MSG_HDR_EXTENDED;
 		pd->tx_msgid[sop] = (pd->tx_msgid[sop] + 1) & PD_MAX_MSG_ID;
-
+		usbpd_info(&pd->dev, "send ext msg pd->tx_msgid[sop]:%d,hdr:%x\n", pd->tx_msgid[sop], hdr);
 		ret = pd_phy_write(hdr, chunked_payload,
 				num_objs * sizeof(u32), sop);
 		if (ret) {
@@ -956,6 +956,7 @@ static int pd_select_pdo(struct usbpd *pd, int pdo_pos, int uv, int ua)
 					uv, ua);
 			return -EINVAL;
 		}
+
 
 		curr = ua / 1000;
 
@@ -1700,8 +1701,8 @@ static void handle_vdm_resp_ack(struct usbpd *pd, u32 *vdos, u8 num_vdos,
 			 * non-zero. Just skip over the zero ones.
 			 */
 			if (svid) {
-				usbpd_dbg(&pd->dev, "Discovered SVID: 0x%04x\n",
-						svid);
+				usbpd_info(&pd->dev, "Discovered SVID: 0x%04x\n",
+							svid);
 				pd->adapter_svid = svid;
 				*psvid++ = svid;
 			}
@@ -2622,7 +2623,6 @@ static void enter_state_src_ready(struct usbpd *pd)
 static void handle_state_src_ready(struct usbpd *pd, struct rx_msg *rx_msg)
 {
 	int ret;
-
 	if (IS_CTRL(rx_msg, MSG_GET_SOURCE_CAP)) {
 		pd->current_state = PE_SRC_SEND_CAPABILITIES;
 		kick_sm(pd, 0);
@@ -3299,7 +3299,6 @@ static void handle_snk_ready_prdr_swap(struct usbpd *pd, struct rx_msg *rx_msg)
 	}
 
 }
-
 static void handle_snk_ready_tx(struct usbpd *pd, struct rx_msg *rx_msg)
 {
 	int ret;
@@ -3398,7 +3397,6 @@ static void handle_state_snk_ready(struct usbpd *pd, struct rx_msg *rx_msg)
 			usbpd_set_state(pd, PE_SEND_SOFT_RESET);
 		return;
 	}
-
 	if (is_sink_tx_ok(pd))
 		handle_snk_ready_tx(pd, rx_msg);
 	else
@@ -3868,7 +3866,8 @@ static void usbpd_sm(struct work_struct *w)
 	struct rx_msg *rx_msg = NULL;
 	unsigned long flags;
 
-	usbpd_dbg(&pd->dev, "handle state %s\n",
+	usbpd_err(&pd->dev, "typec mode:%d, pr:%d, handle state %s\n",
+			pd->typec_mode, pd->current_pr,
 			usbpd_state_strings[pd->current_state]);
 
 	/* Register typec partner in case AAA is connected */
@@ -3989,7 +3988,7 @@ static int usbpd_process_typec_mode(struct usbpd *pd,
 		usbpd_info(&pd->dev, "Type-C Source (%s) connected\n",
 				src_current(typec_mode));
 
-		/* if source insert clean the vbus regulator */
+		/*if source insert clean the vbus regulator*/
 		if (pd->vbus_enabled) {
 			regulator_disable(pd->vbus);
 			pd->vbus_enabled = false;
@@ -4096,7 +4095,7 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 		if (val.intval == POWER_SUPPLY_TYPE_USB ||
 			val.intval == POWER_SUPPLY_TYPE_USB_CDP ||
 			val.intval == POWER_SUPPLY_TYPE_USB_FLOAT) {
-			usbpd_dbg(&pd->dev, "typec mode:%d type:%d\n",
+			usbpd_err(&pd->dev, "typec mode:%d type:%d\n",
 				typec_mode, val.intval);
 			pd->typec_mode = typec_mode;
 			queue_work(pd->wq, &pd->start_periph_work);
@@ -4122,7 +4121,7 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 	if (typec_mode && ((!pd->vbus_present &&
 			pd->current_state == PE_SNK_TRANSITION_TO_DEFAULT) ||
 		(pd->vbus_present && pd->current_state == PE_SNK_DISCOVERY))) {
-		usbpd_dbg(&pd->dev, "hard reset: typec mode:%d present:%d\n",
+		usbpd_info(&pd->dev, "hard reset: typec mode:%d present:%d\n",
 			typec_mode, pd->vbus_present);
 		pd->typec_mode = typec_mode;
 
@@ -4138,7 +4137,7 @@ static int psy_changed(struct notifier_block *nb, unsigned long evt, void *ptr)
 		return 0;
 
 
-	usbpd_dbg(&pd->dev, "typec mode:%d present:%d orientation:%d\n",
+	usbpd_info(&pd->dev, "typec mode:%d present:%d orientation:%d\n",
 			typec_mode, pd->vbus_present,
 			usbpd_get_plug_orientation(pd));
 
@@ -4585,9 +4584,11 @@ static ssize_t select_pdo_store(struct device *dev,
 		goto out;
 	}
 
-	if ((pd->pps_weak_limit) && (ua > USBPD_WAKK_PPS_CURR_LIMIT))
+	if ((pd->pps_weak_limit) && (ua > USBPD_WAKK_PPS_CURR_LIMIT)) {
 		ua = USBPD_WAKK_PPS_CURR_LIMIT;
+	}
 
+	usbpd_info(&pd->dev, "pdo:%d, uv:%d, ua:%d\n", pdo, uv, ua);
 	ret = pd_select_pdo(pd, pdo, uv, ua);
 	if (ret)
 		goto out;
@@ -4746,7 +4747,7 @@ static ssize_t get_src_cap_ext_show(struct device *dev,
 	if (pd->spec_rev == USBPD_REV_20)
 		return -EINVAL;
 
-	/* xiaomi 30W pd adapter can't support pd3.0 get src_cap_ext cmd, so return this cmd */
+	/*xiaomi 30W pd adapter can't support pd3.0 get src_cap_ext cmd, so return this cmd*/
 	return -EINVAL;
 
 	ret = trigger_tx_msg(pd, &pd->send_get_src_cap_ext);
@@ -5631,7 +5632,7 @@ static void usbpd_pdo_workfunc(struct work_struct *w)
 
 		if (pd->received_pdos[1] == 0) {
 			pd->fix_pdo_5v = true;
-			usbpd_info(&pd->dev,"fixed pdo [2]= %d",pd->fix_pdo_5v);
+			usbpd_info(&pd->dev,"fixed pdo [2]= %d", pd->fix_pdo_5v);
 		}
 
 		if (pdo == 0)
@@ -5858,7 +5859,6 @@ struct usbpd *usbpd_create(struct device *parent)
 			pd->passthrough_dis_votable = find_votable("PASSTHROUGH");
 		vote(pd->passthrough_dis_votable, USBPD_INIT_VOTER, true, 0);
 	}
-
 	/*
 	 * associate extcon with the parent dev as it could have a DT
 	 * node which will be useful for extcon_get_edev_by_phandle()
@@ -5984,8 +5984,9 @@ struct usbpd *usbpd_create(struct device *parent)
 
 	pd->svid_handler = svid_handler;
 	ret = usbpd_register_svid(pd, &pd->svid_handler);
-	if (ret)
+	if (ret) {
 		usbpd_err(&pd->dev, "usbpd registration failed\n");
+	}
 
 	/* force read initial power_supply values */
 	psy_changed(&pd->psy_nb, PSY_EVENT_PROP_CHANGED, pd->usb_psy);
